@@ -17,7 +17,7 @@ type Customer = {
 type Generator = {
   id: string
   system_model: string
-  serial_number: string
+  serial_number: string | null
 }
 
 export default function CustomerDetailPage() {
