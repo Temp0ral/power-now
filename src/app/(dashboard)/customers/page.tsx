@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Search, Plus, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 type Customer = {
   id: string
@@ -15,6 +16,7 @@ type Customer = {
 
 export default function CustomersPage() {
   const supabase = createClient()
+  const router = useRouter()
 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [search, setSearch] = useState('')
@@ -114,7 +116,8 @@ export default function CustomersPage() {
               {filtered.map((customer, i) => (
                 <tr
                   key={customer.id}
-                  className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
+                  onClick={() => router.push(`/customers/${customer.id}`)}
+                  className={`cursor-pointer hover:bg-orange-50 transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
                 >
                   <td className="px-6 py-4 font-medium text-gray-900">{customer.name}</td>
                   <td className="px-6 py-4 text-gray-600">{customer.phone}</td>
