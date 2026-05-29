@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Users,
-  Zap,
   ClipboardList,
   Calendar,
   FileText,
@@ -26,7 +25,6 @@ const roleLabels: Record<Role, string> = {
 
 const navItems = [
   { label: 'Customers', href: '/customers', icon: Users, roles: ['ellen', 'jason'] },
-  { label: 'Generators', href: '/generators', icon: Zap, roles: ['ellen', 'jason', 'emile'] },
   { label: 'Services', href: '/services', icon: ClipboardList, roles: ['ellen', 'emile'] },
   { label: 'Schedule', href: '/schedule', icon: Calendar, roles: ['ellen', 'emile'] },
   { label: 'Invoices', href: '/invoices', icon: FileText, roles: ['ellen'] },
