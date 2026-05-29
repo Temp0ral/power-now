@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Search, Plus, X, ChevronDown, ChevronUp, Calendar } from 'lucide-react'
+import { Search, Plus, X, ChevronDown, ChevronUp, Calendar, ArrowUpDown } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+
 
 type Customer = {
   id: string
@@ -62,13 +63,14 @@ export default function CustomersPage() {
   const [scheduling, setScheduling] = useState(false)
   const [expandedCustomers, setExpandedCustomers] = useState<Set<string>>(new Set())
   const [selectedGenerators, setSelectedGenerators] = useState<Set<string>>(new Set())
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null)
   const [form, setForm] = useState({
-    name: '',
-    phone: '',
-    address: '',
-    email: '',
-    service_interval_months: 12,
-  })
+  name: '',
+  phone: '',
+  address: '',
+  email: '',
+  service_interval_months: 6,
+})
 
   useEffect(() => {
     fetchData()
@@ -184,13 +186,34 @@ export default function CustomersPage() {
     return expandedCustomers.has(customer.id)
   }
 
-  const filtered = customers.filter((c) => {
+  const filtered = customers
+  .filter((c) => {
     const q = search.toLowerCase()
     return (
       c.name.toLowerCase().includes(q) ||
       c.phone.toLowerCase().includes(q) ||
       c.address.toLowerCase().includes(q)
     )
+  })
+  .sort((a, b) => {
+    if (!sortOrder) return 0
+    const aGens = generators.filter((g) => g.customer_id === a.id)
+    const bGens = generators.filter((g) => g.customer_id === b.id)
+    const aLastPm = aGens.reduce((latest, g) => {
+      if (!g.last_pm_date) return latest
+      return !latest || g.last_pm_date > latest ? g.last_pm_date : latest
+    }, null as string | null)
+    const bLastPm = bGens.reduce((latest, g) => {
+      if (!g.last_pm_date) return latest
+      return !latest || g.last_pm_date > latest ? g.last_pm_date : latest
+    }, null as string | null)
+    // Customers with no PM date go to the end
+    if (!aLastPm && !bLastPm) return 0
+    if (!aLastPm) return sortOrder === 'asc' ? 1 : -1
+    if (!bLastPm) return sortOrder === 'asc' ? -1 : 1
+    return sortOrder === 'asc'
+      ? aLastPm.localeCompare(bLastPm)
+      : bLastPm.localeCompare(aLastPm)
   })
 
   return (
@@ -219,17 +242,28 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by name, phone, or address..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-        />
-      </div>
+     {/* Search and Sort */}
+<div className="flex gap-3 mb-6">
+  <div className="relative flex-1">
+    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+    <input
+      type="text"
+      placeholder="Search by name, phone, or address..."
+      value={search}
+      onChange={(e) => setSearch(e.target.value)}
+      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+    />
+  </div>
+  <button
+    onClick={() => setSortOrder((prev) => prev === 'asc' ? 'desc' : prev === 'desc' ? null : 'asc')}
+    className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+      sortOrder ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+    }`}
+  >
+    <ArrowUpDown size={16} />
+    {sortOrder === 'asc' ? 'Last PM ↑' : sortOrder === 'desc' ? 'Last PM ↓' : 'Sort'}
+  </button>
+</div>
 
       {/* Customer list */}
       {loading ? (
@@ -407,7 +441,7 @@ export default function CustomersPage() {
                   onChange={(e) => setForm({ ...form, service_interval_months: parseInt(e.target.value) })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 >
-                  <option value={6}>Every 6 months</option>
+                  <option value={6} selected>Every 6 months</option>
                   <option value={12}>Every 12 months</option>
                 </select>
               </div>
