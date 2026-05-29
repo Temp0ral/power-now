@@ -54,6 +54,7 @@ type Service = {
   customer_signature: string | null
   additional_maintenance: boolean
   additional_maintenance_note: string | null
+  customer_not_home: boolean
 }
 
 type Generator = {
@@ -93,6 +94,7 @@ export default function ServiceDetailPage() {
   const [photos, setPhotos] = useState<File[]>([])
   const [photosPreviews, setPhotosPreviews] = useState<string[]>([])
   const [uploadingPhotos, setUploadingPhotos] = useState(false)
+  const [customerNotHome, setCustomerNotHome] = useState(false)
 
   const sigCanvas = useRef<SignatureCanvas>(null)
   const [signed, setSigned] = useState(false)
@@ -114,6 +116,7 @@ export default function ServiceDetailPage() {
       setNotes(serviceData.notes ?? '')
       setAdditionalMaintenance(serviceData.additional_maintenance ?? false)
       setAdditionalMaintenanceNote(serviceData.additional_maintenance_note ?? '')
+      setCustomerNotHome(serviceData.customer_not_home ?? false)
 
       const { data: genData } = await supabase
         .from('generators')
@@ -217,15 +220,17 @@ export default function ServiceDetailPage() {
   }
 
   async function handleComplete() {
-    if (!sigCanvas.current || sigCanvas.current.isEmpty()) return
+    if (!customerNotHome && (!sigCanvas.current || sigCanvas.current.isEmpty())) return
     setSaving(true)
 
-    const signatureData = sigCanvas.current.toDataURL()
+    const signatureData = customerNotHome ? null : sigCanvas.current!.toDataURL()
+
     await supabase.from('services').update({
       customer_signature: signatureData,
+      customer_not_home: customerNotHome,
     }).eq('id', id)
 
-    if (customer?.email) {
+    if (customer?.email && !customerNotHome) {
       setSendingEmail(true)
       const checklistForEmail = CHECKLIST.map(({ section, item }) => ({
         section,
@@ -384,7 +389,6 @@ export default function ServiceDetailPage() {
             </div>
           </div>
 
-          {/* Check All button */}
           <button
             onClick={handleCheckAll}
             className="w-full mt-6 bg-black hover:bg-gray-800 text-white py-3 rounded-lg font-medium transition-colors"
@@ -518,40 +522,76 @@ export default function ServiceDetailPage() {
       {/* Step: Signature */}
       {step === 'signature' && (
         <div className="bg-white rounded-xl shadow p-6">
-          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-2">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-4">
             <PenLine size={20} className="text-orange-500" />
             Customer Signature
           </h3>
-          <p className="text-sm text-gray-500 mb-4">Please have the customer sign below to confirm the service.</p>
 
-          <div className="border-2 border-gray-300 rounded-xl overflow-hidden">
-            <SignatureCanvas
-              ref={sigCanvas}
-              onEnd={() => setSigned(true)}
-              canvasProps={{
-                className: 'w-full',
-                height: 200,
-              }}
-            />
+          {/* Customer not home checkbox */}
+          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={customerNotHome}
+                onChange={(e) => {
+                  setCustomerNotHome(e.target.checked)
+                  if (e.target.checked) {
+                    sigCanvas.current?.clear()
+                    setSigned(false)
+                  }
+                }}
+                className="w-4 h-4 accent-orange-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Customer was not home</span>
+            </label>
           </div>
 
-          <button
-            onClick={() => {
-              sigCanvas.current?.clear()
-              setSigned(false)
-            }}
-            className="text-sm text-gray-500 hover:text-gray-700 mt-2 transition-colors"
-          >
-            Clear signature
-          </button>
+          {!customerNotHome && (
+            <>
+              <p className="text-sm text-gray-500 mb-4">
+                Please have the customer sign below to confirm the service.
+              </p>
+              <div className="border-2 border-gray-300 rounded-xl overflow-hidden">
+                <SignatureCanvas
+                  ref={sigCanvas}
+                  onEnd={() => setSigned(true)}
+                  canvasProps={{
+                    className: 'w-full',
+                    height: 200,
+                  }}
+                />
+              </div>
+              <button
+                onClick={() => {
+                  sigCanvas.current?.clear()
+                  setSigned(false)
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700 mt-2 transition-colors"
+              >
+                Clear signature
+              </button>
+            </>
+          )}
+
+          {customerNotHome && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+              Service will be marked as complete. No signature required.
+            </div>
+          )}
 
           <button
             onClick={handleComplete}
-            disabled={!signed || saving || sendingEmail}
+            disabled={(!signed && !customerNotHome) || saving || sendingEmail}
             className="w-full mt-4 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
           >
             <Send size={18} />
-            {sendingEmail ? 'Sending report...' : saving ? 'Saving...' : 'Complete Service & Email Report'}
+            {sendingEmail
+              ? 'Sending report...'
+              : saving
+              ? 'Saving...'
+              : customerNotHome
+              ? 'Complete Service'
+              : 'Complete Service & Email Report'}
           </button>
         </div>
       )}
