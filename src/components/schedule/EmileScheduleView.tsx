@@ -22,6 +22,7 @@ export default function EmileScheduleView() {
   const [scheduled, setScheduled] = useState<Service[]>([])
   const [availability, setAvailability] = useState<Availability[]>([])
   const [loading, setLoading] = useState(true)
+  const [applyingSchedule, setApplyingSchedule] = useState(false)
   const [tab, setTab] = useState<'uncompleted' | 'completed'>('uncompleted')
 
   const weekDates = DAYS.map((_, i) => addDays(weekStart, i))
@@ -38,7 +39,26 @@ export default function EmileScheduleView() {
       .from('availability')
       .select('*')
       .eq('week_start', weekStartStr)
-    if (availData) setAvailability(availData)
+
+    if (availData && availData.length > 0) {
+      setAvailability(availData)
+    } else {
+      // Default to full day for all 5 days if no availability set
+      const defaultAvail: Availability[] = []
+      for (let i = 0; i < 5; i++) {
+        const { data } = await supabase
+          .from('availability')
+          .insert({
+            week_start: weekStartStr,
+            day_of_week: i,
+            availability_type: 'full_day',
+          })
+          .select()
+          .single()
+        if (data) defaultAvail.push(data)
+      }
+      setAvailability(defaultAvail)
+    }
 
     const weekEnd = formatDate(addDays(weekStart, 6))
     const { data: servicesData } = await supabase
@@ -90,8 +110,30 @@ export default function EmileScheduleView() {
     }
   }
 
-  const uncompleted = scheduled.filter((s) => !s.customer_signature)
-  const completed = scheduled.filter((s) => !!s.customer_signature)
+  async function handleApplyToFutureWeeks() {
+    if (availability.length === 0) return
+    setApplyingSchedule(true)
+    try {
+      await fetch('/api/apply-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          availability: availability.map((a) => ({
+            day_of_week: a.day_of_week,
+            availability_type: a.availability_type,
+          })),
+          fromWeek: formatDate(weekStart),
+        }),
+      })
+      alert('Schedule applied to all future weeks.')
+    } catch {
+      alert('Something went wrong. Please try again.')
+    }
+    setApplyingSchedule(false)
+  }
+
+  const uncompleted = scheduled.filter((s) => !s.customer_signature && !s.customer_not_home)
+  const completed = scheduled.filter((s) => !!s.customer_signature || !!s.customer_not_home)
   const displayed = tab === 'uncompleted' ? uncompleted : completed
 
   if (loading) return <p className="text-gray-500">Loading...</p>
@@ -126,7 +168,7 @@ export default function EmileScheduleView() {
       </div>
 
       {/* Availability */}
-      <div className="bg-white rounded-xl shadow p-4 mb-6">
+      <div className="bg-white rounded-xl shadow p-4 mb-4">
         <h3 className="text-sm font-bold text-gray-700 mb-3">My Availability This Week</h3>
         <AvailabilitySelector
           weekDates={weekDates}
@@ -134,6 +176,15 @@ export default function EmileScheduleView() {
           onToggle={handleAvailabilityToggle}
         />
       </div>
+
+      {/* Apply to future weeks button */}
+      <button
+        onClick={handleApplyToFutureWeeks}
+        disabled={applyingSchedule}
+        className="w-full mb-6 bg-black hover:bg-gray-800 disabled:bg-gray-400 text-white py-2.5 rounded-lg text-sm font-medium transition-colors"
+      >
+        {applyingSchedule ? 'Applying...' : 'Apply This Schedule to All Future Weeks'}
+      </button>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
@@ -162,42 +213,57 @@ export default function EmileScheduleView() {
         </p>
       ) : (
         <div className="space-y-3">
-          {displayed.map((service) => (
-            <div
-              key={service.id}
-              className={`bg-white rounded-xl shadow p-4 border-l-4 ${
-                service.customer_signature ? 'border-green-500' : 'border-orange-500'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-semibold text-gray-900">{service.customer?.name}</p>
-                  <p className="text-sm text-gray-500">{service.customer?.address}</p>
-                  <p className="text-sm text-gray-500">{service.generator?.system_model}</p>
-                  <div className="flex gap-1 mt-2 flex-wrap">
-                    {service.is_pm && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">PM</span>}
-                    {service.is_repair && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Repair</span>}
-                    {service.is_emergency && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Emergency</span>}
+          {displayed.map((service) => {
+            const isCompleted = !!service.customer_signature || !!service.customer_not_home
+            return (
+              <div
+                key={service.id}
+                className={`rounded-xl shadow p-4 border-l-4 ${
+                  isCompleted
+                    ? 'bg-gray-100 border-gray-400'
+                    : 'bg-white border-orange-500'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className={`font-semibold ${isCompleted ? 'text-gray-400' : 'text-gray-900'}`}>
+                      {service.customer?.name}
+                    </p>
+                    <p className={`text-sm ${isCompleted ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {service.customer?.address}
+                    </p>
+                    <p className={`text-sm ${isCompleted ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {service.generator?.system_model}
+                    </p>
+                    {!isCompleted && (
+                      <div className="flex gap-1 mt-2 flex-wrap">
+                        {service.is_pm && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">PM</span>}
+                        {service.is_repair && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Repair</span>}
+                        {service.is_emergency && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Emergency</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400">{service.scheduled_date}</p>
+                    {isCompleted && (
+                      <span className="text-xs text-gray-400 font-medium">
+                        {service.customer_not_home ? 'Not home' : '✓ Done'}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400">{service.scheduled_date}</p>
-                  {service.customer_signature && (
-                    <CheckCircle size={20} className="text-green-500 mt-1 ml-auto" />
-                  )}
-                </div>
+                {!isCompleted && (
+                  <Link
+                    href={`/services/${service.id}`}
+                    className="mt-3 w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    <ClipboardList size={16} />
+                    Start Service
+                  </Link>
+                )}
               </div>
-              {!service.customer_signature && (
-                <Link
-                  href={`/services/${service.id}`}
-                  className="mt-3 w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                  <ClipboardList size={16} />
-                  Start Service
-                </Link>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

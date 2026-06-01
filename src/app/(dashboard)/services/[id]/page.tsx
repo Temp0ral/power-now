@@ -432,8 +432,8 @@ export default function ServiceDetailPage() {
       customer_not_home: customerNotHome,
     }).eq('id', id)
 
-    if (customer?.email && !customerNotHome) {
-      setSendingEmail(true)
+    if (customer?.email) {
+    setSendingEmail(true)
       const checklistForEmail = CHECKLIST.map(({ section, item }) => ({
         section,
         item,

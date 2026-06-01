@@ -155,15 +155,6 @@ export async function POST(req: NextRequest) {
         </div>
         ` : ''}
 
-        ${customerSignature ? `
-        <div style="margin: 24px 0;">
-          <p style="color: #888; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Customer Signature</p>
-          <div style="border: 1px solid #eee; border-radius: 6px; padding: 8px; background: #fff; display: inline-block;">
-            <img src="${customerSignature}" alt="Customer Signature" style="max-width: 300px; height: auto; display: block;" />
-          </div>
-        </div>
-        ` : ''}
-
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
           <p style="color: #888; font-size: 12px; margin: 0;">Power Now Generators</p>
           <p style="color: #888; font-size: 12px; margin: 4px 0;">16 Andrew Avenue, Hull, MA 02045</p>
