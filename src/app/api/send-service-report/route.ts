@@ -27,6 +27,8 @@ export async function POST(req: NextRequest) {
     additionalMaintenanceNote,
     technicianName,
     checklist,
+    customerSignature,
+    parts,
   } = body
 
   if (!customerEmail) {
@@ -38,20 +40,12 @@ export async function POST(req: NextRequest) {
   if (isRepair) serviceTypes.push('Repair')
   if (isEmergency) serviceTypes.push('Emergency Call')
 
-  // Group checklist by section
   const checklistBySection: Record<string, ChecklistItem[]> = {}
   if (checklist && checklist.length > 0) {
     checklist.forEach((item: ChecklistItem) => {
       if (!checklistBySection[item.section]) checklistBySection[item.section] = []
       checklistBySection[item.section].push(item)
     })
-  }
-
-  const statusLabel = (status: string | null) => {
-    if (status === 'ok') return '<span style="color: #16a34a; font-weight: bold;">OK</span>'
-    if (status === 'not_ok') return '<span style="color: #dc2626; font-weight: bold;">Not OK</span>'
-    if (status === 'other') return '<span style="color: #d97706; font-weight: bold;">Other</span>'
-    return '<span style="color: #9ca3af;">—</span>'
   }
 
   const checklistHtml = isPm && Object.keys(checklistBySection).length > 0 ? `
@@ -148,7 +142,25 @@ export async function POST(req: NextRequest) {
         ${additionalMaintenance ? `
         <div style="margin: 20px 0; background: #fff7ed; border: 1px solid #fed7aa; padding: 16px; border-radius: 6px;">
           <p style="color: #c2410c; font-size: 13px; font-weight: bold; margin: 0 0 6px 0;">⚠ ADDITIONAL MAINTENANCE PERFORMED</p>
-          <p style="color: #111; margin: 0;">${additionalMaintenanceNote}</p>
+          <p style="color: #111; margin: 0 0 12px 0;">${additionalMaintenanceNote}</p>
+          ${parts && parts.length > 0 ? `
+            <p style="color: #c2410c; font-size: 12px; font-weight: bold; margin: 0 0 6px 0; text-transform: uppercase; letter-spacing: 0.05em;">Parts Used</p>
+            <ul style="margin: 0 0 12px 0; padding-left: 16px;">
+              ${parts.map((p: string) => `<li style="color: #111; font-size: 13px; margin-bottom: 4px;">${p}</li>`).join('')}
+            </ul>
+          ` : ''}
+          <p style="color: #c2410c; font-size: 12px; font-style: italic; margin: 0; border-top: 1px solid #fed7aa; padding-top: 10px;">
+            Note: Additional parts and labor charges will be reflected on your invoice.
+          </p>
+        </div>
+        ` : ''}
+
+        ${customerSignature ? `
+        <div style="margin: 24px 0;">
+          <p style="color: #888; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Customer Signature</p>
+          <div style="border: 1px solid #eee; border-radius: 6px; padding: 8px; background: #fff; display: inline-block;">
+            <img src="${customerSignature}" alt="Customer Signature" style="max-width: 300px; height: auto; display: block;" />
+          </div>
         </div>
         ` : ''}
 

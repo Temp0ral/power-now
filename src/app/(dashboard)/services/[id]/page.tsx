@@ -41,6 +41,13 @@ const CHECKLIST = [
   { section: '10. Entire System', item: 'B. Exercise unit' },
 ]
 
+const PARTS = [
+  { key: 'spark_plug_1', label: 'Spark Plug (1)' },
+  { key: 'spark_plugs_2', label: 'Spark Plugs (2)' },
+  { key: 'air_filter', label: 'Air Filter' },
+  { key: 'battery', label: 'Battery' },
+]
+
 type ChecklistStatus = 'ok' | 'not_ok' | 'other' | null
 
 type Service = {
@@ -99,6 +106,7 @@ export default function ServiceDetailPage() {
   const [sendingEmail, setSendingEmail] = useState(false)
   const [additionalMaintenance, setAdditionalMaintenance] = useState(false)
   const [additionalMaintenanceNote, setAdditionalMaintenanceNote] = useState('')
+  const [selectedParts, setSelectedParts] = useState<Record<string, number>>({})
   const [notes, setNotes] = useState('')
   const [newPhotos, setNewPhotos] = useState<File[]>([])
   const [photosPreviews, setPhotosPreviews] = useState<string[]>([])
@@ -160,6 +168,16 @@ export default function ServiceDetailPage() {
         .select('*')
         .eq('service_id', id)
       if (photoData) setPhotos(photoData)
+
+      const { data: partsData } = await supabase
+        .from('service_parts')
+        .select('*')
+        .eq('service_id', id)
+      if (partsData && partsData.length > 0) {
+        const map: Record<string, number> = {}
+        partsData.forEach((p) => { map[p.part_name] = p.quantity })
+        setSelectedParts(map)
+      }
     }
     setLoading(false)
   }
@@ -179,6 +197,8 @@ export default function ServiceDetailPage() {
       acc[section].push(item)
       return acc
     }, {} as Record<string, string[]>)
+
+    const usedParts = PARTS.filter((p) => selectedParts[p.key] > 0)
 
     return (
       <div className="max-w-2xl mx-auto space-y-6">
@@ -229,13 +249,10 @@ export default function ServiceDetailPage() {
                         <div key={item} className="flex items-center justify-between py-1.5 border-b border-gray-50">
                           <span className="text-sm text-gray-700">{item}</span>
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                            status === 'ok'
-                              ? 'bg-green-100 text-green-700'
-                              : status === 'not_ok'
-                              ? 'bg-red-100 text-red-600'
-                              : status === 'other'
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-gray-100 text-gray-400'
+                            status === 'ok' ? 'bg-green-100 text-green-700'
+                            : status === 'not_ok' ? 'bg-red-100 text-red-600'
+                            : status === 'other' ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-gray-100 text-gray-400'
                           }`}>
                             {status === 'ok' ? 'OK' : status === 'not_ok' ? 'Not OK' : status === 'other' ? 'Other' : '—'}
                           </span>
@@ -264,7 +281,19 @@ export default function ServiceDetailPage() {
         {service.additional_maintenance && (
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
             <h3 className="text-base font-bold text-orange-600 mb-2">⚠ Additional Maintenance</h3>
-            <p className="text-gray-700 text-sm">{service.additional_maintenance_note}</p>
+            <p className="text-gray-700 text-sm mb-4">{service.additional_maintenance_note}</p>
+            {usedParts.length > 0 && (
+              <div>
+                <p className="text-xs font-bold text-orange-600 uppercase tracking-wide mb-2">Parts Used</p>
+                <div className="flex flex-wrap gap-2">
+                  {usedParts.map((p) => (
+                    <span key={p.key} className="text-xs bg-white border border-orange-200 text-orange-700 px-2 py-1 rounded-full font-medium">
+                      {p.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -318,7 +347,6 @@ export default function ServiceDetailPage() {
   if (loading) return <p className="text-gray-500">Loading...</p>
   if (!service) return <p className="text-gray-500">Service not found.</p>
 
-  // Ellen and Jason see read-only view
   if (role === 'ellen' || role === 'jason') return <ReadOnlyView />
 
   const serviceTypes = [
@@ -327,7 +355,6 @@ export default function ServiceDetailPage() {
     service.is_emergency && 'Emergency Call',
   ].filter(Boolean).join(', ')
 
-  // Emile's editable workflow
   async function handleCheckAll() {
     const all: Record<string, ChecklistStatus> = {}
     CHECKLIST.forEach(({ section, item }) => {
@@ -355,10 +382,21 @@ export default function ServiceDetailPage() {
       return { service_id: id, section, item_label, status }
     })
     if (rows.length > 0) await supabase.from('checklist_items').insert(rows)
+
     await supabase.from('services').update({
       additional_maintenance: additionalMaintenance,
       additional_maintenance_note: additionalMaintenanceNote || null,
     }).eq('id', id)
+
+    // Save parts
+    await supabase.from('service_parts').delete().eq('service_id', id)
+    const partRows = Object.entries(selectedParts)
+      .filter(([_, qty]) => qty > 0)
+      .map(([part_name, quantity]) => ({ service_id: id, part_name, quantity }))
+    if (partRows.length > 0) {
+      await supabase.from('service_parts').insert(partRows)
+    }
+
     setSaving(false)
     setStep('photos')
   }
@@ -421,6 +459,7 @@ export default function ServiceDetailPage() {
           technicianName: 'Emile',
           checklist: checklistForEmail,
           customerSignature: signatureData,
+        parts: PARTS.filter((p) => selectedParts[p.key] > 0).map((p) => p.label),
         }),
       })
       setSendingEmail(false)
@@ -507,6 +546,8 @@ export default function ServiceDetailPage() {
                 </div>
               </div>
             ))}
+
+            {/* Additional Maintenance */}
             <div className="pt-4 border-t-2 border-orange-200">
               <label className="flex items-center gap-3 cursor-pointer mb-3">
                 <input
@@ -518,16 +559,40 @@ export default function ServiceDetailPage() {
                 <span className="text-sm font-bold text-gray-700">Additional Maintenance Performed</span>
               </label>
               {additionalMaintenance && (
-                <textarea
-                  value={additionalMaintenanceNote}
-                  onChange={(e) => setAdditionalMaintenanceNote(e.target.value)}
-                  placeholder="Describe the additional maintenance performed..."
-                  rows={3}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-                />
+                <div className="space-y-3">
+                  <textarea
+                    value={additionalMaintenanceNote}
+                    onChange={(e) => setAdditionalMaintenanceNote(e.target.value)}
+                    placeholder="Describe the additional maintenance performed..."
+                    rows={3}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+                  />
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">Parts Used</p>
+                    <div className="space-y-2">
+                      {PARTS.map(({ key, label }) => (
+                        <label key={key} className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!selectedParts[key]}
+                            onChange={(e) => {
+                              setSelectedParts((prev) => ({
+                                ...prev,
+                                [key]: e.target.checked ? 1 : 0,
+                              }))
+                            }}
+                            className="w-4 h-4 accent-orange-500"
+                          />
+                          <span className="text-sm text-gray-700">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
+
           <button onClick={handleCheckAll} className="w-full mt-6 bg-black hover:bg-gray-800 text-white py-3 rounded-lg font-medium transition-colors">
             ✓ Check All Items OK
           </button>
@@ -612,7 +677,16 @@ export default function ServiceDetailPage() {
             {additionalMaintenance && (
               <div className="py-3 bg-orange-50 rounded-lg px-4">
                 <span className="text-orange-600 font-bold text-xs uppercase tracking-wide block mb-1">⚠ Additional Maintenance</span>
-                <p className="text-gray-900">{additionalMaintenanceNote}</p>
+                <p className="text-gray-900 mb-2">{additionalMaintenanceNote}</p>
+                {Object.entries(selectedParts).filter(([_, qty]) => qty > 0).length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {PARTS.filter((p) => selectedParts[p.key] > 0).map((p) => (
+                      <span key={p.key} className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
+                        {p.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
