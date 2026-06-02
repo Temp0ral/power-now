@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   ChevronDown,
+  Package,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useRole } from '@/lib/role'
@@ -26,7 +27,8 @@ const roleLabels: Record<Role, string> = {
 const navItems = [
   { label: 'Customers', href: '/customers', icon: Users, roles: ['ellen', 'jason'] },
   { label: 'Services', href: '/services', icon: ClipboardList, roles: ['ellen', 'emile'] },
-  { label: 'Schedule', href: '/schedule', icon: Calendar, roles: ['ellen', 'emile'] },
+  { label: 'Schedule', href: '/schedule', icon: Calendar, roles: ['ellen', 'emile', 'jason'] },
+  { label: 'Parts', href: '/parts', icon: Package, roles: ['jason'] },
   { label: 'Invoices', href: '/invoices', icon: FileText, roles: ['ellen'] },
 ]
 
