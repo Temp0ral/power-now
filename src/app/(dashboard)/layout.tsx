@@ -11,6 +11,7 @@ import {
   X,
   ChevronDown,
   Package,
+  DollarSign,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useRole } from '@/lib/role'
@@ -30,6 +31,7 @@ const navItems = [
   { label: 'Schedule', href: '/schedule', icon: Calendar, roles: ['ellen', 'emile', 'jason'] },
   { label: 'Parts', href: '/parts', icon: Package, roles: ['jason'] },
   { label: 'Invoices', href: '/invoices', icon: FileText, roles: ['ellen'] },
+  { label: 'Pricing', href: '/pricing', icon: DollarSign, roles: ['ellen'] },
 ]
 
 export default function DashboardLayout({
